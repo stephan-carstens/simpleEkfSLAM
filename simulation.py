@@ -2,7 +2,7 @@ import numpy as np
 
 
 class Simulation:
-    def __init__(self, dk, STOP_K, n_landmarks, u = None):
+    def __init__(self, dk:float, STOP_K:int, n_landmarks:int, motion_params:dict, u:np.array = None):
         """
             Simulation class for encapsulating ground-truth position and landmarks
 
@@ -24,6 +24,12 @@ class Simulation:
         self.x_dead_reckoning = np.zeros((3, STOP_K))      # [x, y, theta].T for each time step
         self.dk = dk
 
+        # motion params
+        self.a = np.array([[motion_params['a_1'], motion_params['a_2']],
+                           [motion_params['a_3'], motion_params['a_4']],
+                           [motion_params['a_5'], motion_params['a_6']]])
+
+
     def move(self, k):
         """
             Move the robot to the next position. 
@@ -38,14 +44,32 @@ class Simulation:
 
             theta' = theta + w' * dt + gaussian(0, a_5 v^2 + a_6 w^2) * dt
         """
+        self._move_dead_reckoning(k)
+        self._move(k)
+    
+    
+    def _move_dead_reckoning(self, k):
+        x_prev = self.x_dead_reckoning[:,k-1]
 
+        r_ = self.u[0] / self.u[1]
+        x = x_prev[0] - r_*np.sin(x_prev[2]) + r_*np.sin(x_prev[2] + self.u[1]*self.dk)
+        y = x_prev[1] + r_*np.cos(x_prev[2]) - r_*np.cos(x_prev[2] + self.u[1]*self.dk)
+        theta = Simulation.angle(x_prev[2] + self.u[1]*self.dk)
+
+        self.x_dead_reckoning[:,k] = np.array([[x, y, theta]])
+        
+
+    def _move(self, k):
         x_prev = self.x[:,k-1]
-        u = self.u
 
-        r_ = u[0] / u[1]
-        x = x_prev[0] - r_ * np.sin(x_prev[2]) + r_ * np.sin(x_prev[2] + u[1]*self.dk)
-        y = x_prev[1] + r_ * np.cos(x_prev[2]) - r_ * np.cos(x_prev[2] + u[1]*self.dk)
-        theta = Simulation.angle(x_prev[2] + u[1]*self.dk)
+        v = self.u[0] + np.random.normal(0, np.sqrt(self.a[0,:].dot(self.u**2)))        # variance = a_1 v^2 + a_2 w^2
+        w = self.u[1] + np.random.normal(0, np.sqrt(self.a[1,:].dot(self.u**2)))
+        gamma =         np.random.normal(0, np.sqrt(self.a[2,:].dot(self.u**2)))
+
+        r_ = v / w
+        x = x_prev[0] - r_ * np.sin(x_prev[2]) + r_ * np.sin(x_prev[2] + w*self.dk)
+        y = x_prev[1] + r_ * np.cos(x_prev[2]) - r_ * np.cos(x_prev[2] + w*self.dk)
+        theta = Simulation.angle(x_prev[2] + w*self.dk + gamma*self.dk)
 
         self.x[:,k] = np.array([[x, y, theta]])
 
