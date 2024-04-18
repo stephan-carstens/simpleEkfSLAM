@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import simulation
 import EKF
 
 
@@ -11,20 +12,6 @@ dk = 1
 
 n_landmarks = 22
 
-
-def angle(theta):
-    return theta % (2*np.pi)
-
-
-def generate_landmarks(n_landmarks):
-    l_x = np.random.uniform(-10, 10, size=(1, n_landmarks))             # [x, y].T for each landmark
-    l_y = np.sqrt(100-l_x[:,:n_landmarks//2]**2) + 10
-    l_y2 = -np.sqrt(100-l_x[:,n_landmarks//2:]**2) + 10
-    l_y = np.hstack([l_y, l_y2])
-    l_pos = np.vstack((l_x, l_y))
-    l_pos += np.random.normal(-0.5, 1, size=l_pos.shape) + np.random.normal(0.5, 1, size=l_pos.shape)
-
-    return l_pos
 
 def update_plot(x, l_pos, k):
     """
@@ -49,25 +36,13 @@ def update_plot(x, l_pos, k):
     plt.pause(0.2)
 
 
-def move(x_prev, u):
-    r_ = u[0] / u[1]
-    x = x_prev[0] - r_ * np.sin(x_prev[2]) + r_ * np.sin(x_prev[2] + u[1]*dk)
-    y = x_prev[1] + r_ * np.cos(x_prev[2]) - r_ * np.cos(x_prev[2] + u[1]*dk)
-    theta = angle(x_prev[2] + u[1]*dk)
-
-    return np.array([[x, y, theta]])
-
-
 def main():
-    x = np.zeros((3, STOP_K))                   # [x, y, theta].T for each time step
-    u = np.array([1, 0.1])                       # [v, w].T
-
-    l_pos = generate_landmarks(n_landmarks)
+    sim = simulation.Simulation(dk=dk, STOP_K=STOP_K, n_landmarks=n_landmarks)
 
     for k in range(STOP_K):
-        x[:,k] = move(x[:,k-1], u)
+        sim.move(k)
 
-        update_plot(x, l_pos, k)
+        update_plot(sim.x, sim.l_pos, k)
 
 
 if __name__ == '__main__':
