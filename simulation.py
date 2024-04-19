@@ -2,7 +2,8 @@ import numpy as np
 
 
 class Simulation:
-    def __init__(self, dk:float, STOP_K:int, n_landmarks:int, motion_params:dict, u:np.array = None):
+    def __init__(self, dk:float, STOP_K:int, n_landmarks:int, 
+                    motion_params:dict, observation_params:dict, u:np.array = None):
         """
             Simulation class for encapsulating ground-truth position and landmarks
 
@@ -17,22 +18,15 @@ class Simulation:
         """
         if u is None: self.u = np.array([1, 0.1])                       # [v, w].T
         else: self.u = u
-
         self._x = np.zeros((3, STOP_K))                   # [x, y, theta].T for each time step
-        self._l_pos = Simulation.generate_landmarks(n_landmarks)
-
+        self._l_pos = Simulation.generate_landmarks_uniform(n_landmarks)
         self.x_dead_reckoning = np.zeros((3, STOP_K))      # [x, y, theta].T for each time step
         self.dk = dk
-
-        # motion params
         self.a = np.array([[motion_params['a_1'], motion_params['a_2']],
                            [motion_params['a_3'], motion_params['a_4']],
                            [motion_params['a_5'], motion_params['a_6']]])
-
+        self.observation_params = observation_params
         self.observed = None
-        self.bearing = None
-        self.dists = None
-
 
     def move(self, k):
         """
@@ -51,7 +45,6 @@ class Simulation:
         self._move_dead_reckoning(k)
         self._move(k)
     
-    
     def _move_dead_reckoning(self, k):
         x_prev = self.x_dead_reckoning[:,k-1]
 
@@ -61,7 +54,6 @@ class Simulation:
         theta = Simulation.angle(x_prev[2] + self.u[1]*self.dk)
 
         self.x_dead_reckoning[:,k] = np.array([[x, y, theta]])
-        
 
     def _move(self, k):
         x_prev = self.x[:,k-1]
@@ -83,11 +75,18 @@ class Simulation:
         observed = np.where(dists < 7)
         bearing = Simulation.angle(np.arctan2(diff[1, observed], diff[0, observed]) - self.x[2,k])
         
-        self.observed = observed
-        self.bearing = bearing
-        self.dists = dists[observed]
+        return observed, bearing, dists
+
+    def observe(self):
+        observed, bearing, dists = self._observe(k)
+
+        bearing +=  np.random.normal(0, self.observation_params["sigma_r"], size=bearing.shape)
+        dists   +=  np.random.normal(0, self.observation_params["sigma_phi"], size=dists.shape)
+
+        return observed, bearing, dists
         
 
+    # Properties
     @property
     def x(self):
         return self._x
@@ -96,6 +95,8 @@ class Simulation:
     def l_pos(self):
         return self._l_pos
 
+
+    # Static methods
     @staticmethod
     def angle(theta):
         return theta % (2*np.pi)
@@ -108,6 +109,12 @@ class Simulation:
         l_y = np.hstack([l_y, l_y2])
         l_pos = np.vstack((l_x, l_y))
         l_pos += np.random.normal(-0.5, 1, size=l_pos.shape) + np.random.normal(0.5, 1, size=l_pos.shape)
+
+        return l_pos
+
+    @staticmethod
+    def generate_landmarks_uniform(n_landmarks):
+        l_pos = np.random.uniform(-20, 20, size=(2, n_landmarks))             # [x, y].T for each landmark
 
         return l_pos
 
