@@ -29,6 +29,10 @@ class Simulation:
                            [motion_params['a_3'], motion_params['a_4']],
                            [motion_params['a_5'], motion_params['a_6']]])
 
+        self.observed = None
+        self.bearing = None
+        self.dists = None
+
 
     def move(self, k):
         """
@@ -73,6 +77,17 @@ class Simulation:
 
         self.x[:,k] = np.array([[x, y, theta]])
 
+    def _observe(self, k):
+        diff = self.x[:2,k][:,np.newaxis] - self._l_pos
+        dists = np.hypot(diff[0], diff[1])
+        observed = np.where(dists < 7)
+        bearing = Simulation.angle(np.arctan2(diff[1, observed], diff[0, observed]) - self.x[2,k])
+        
+        self.observed = observed
+        self.bearing = bearing
+        self.dists = dists[observed]
+        
+
     @property
     def x(self):
         return self._x
@@ -80,9 +95,6 @@ class Simulation:
     @property
     def l_pos(self):
         return self._l_pos
-
-    def observe(self):
-        pass
 
     @staticmethod
     def angle(theta):
