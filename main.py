@@ -16,10 +16,10 @@ def main():
     observation_params = {
         'sigma_r': 0.1, 'sigma_phi': 0.01}
     sim = simulation.Simulation(
-        dk=1., STOP_K=STOP_K, n_landmarks=100, 
+        dk=1., STOP_K=STOP_K, n_landmarks=150, 
         motion_params=velocity_motion_params, observation_params=observation_params)
 
-    R = np.eye(3, 3) * 0.1
+    R = np.eye(3, 3) * 0.001
     Q = np.eye (2, 2) * 0.1
     est = ekf.EKF(motion_model_covariance=R, observation_model_covariance=Q)
 
@@ -30,6 +30,7 @@ def main():
         est.predict_update(sim.u, sim.dk, obs_ids, bearing, dist)
 
         # obs_ids, _, _ = sim._observe(k)
+        # print(est.mu[:2, 0])
         update_plot(sim.x, sim.x_dead_reckoning, est.mu[:2, 0], sim.l_pos, obs_ids, k)
     plt.show()
 

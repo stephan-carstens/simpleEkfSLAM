@@ -128,7 +128,7 @@ class Simulation:
 
     @staticmethod
     def generate_landmarks_uniform(n_landmarks):
-        l_pos = np.random.uniform(-20, 20, size=(2, n_landmarks))             # [x, y].T for each landmark
+        l_pos = np.random.uniform(-20, 35, size=(2, n_landmarks))             # [x, y].T for each landmark
 
         return l_pos
 
