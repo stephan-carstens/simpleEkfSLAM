@@ -3,7 +3,7 @@ import numpy as np
 
 class Simulation:
     def __init__(self, dk:float, STOP_K:int, n_landmarks:int, 
-                    motion_params:dict, observation_params:dict, u:np.array = None):
+                    motion_params:dict, observation_params:dict, u:np.array = None, view_distance:float = 7.0):
         """
             Simulation class for encapsulating ground-truth position and landmarks
 
@@ -19,7 +19,7 @@ class Simulation:
         if u is None: self.u = np.array([1, 0.1])                       # [v, w].T
         else: self.u = u
         self._x = np.zeros((3, STOP_K))                   # [x, y, theta].T for each time step
-        self._l_pos = Simulation.generate_landmarks_uniform(n_landmarks)
+        self._landmarks_pos = Simulation.generate_landmarks_uniform(n_landmarks)        # (2, N_LANDMARKS)
         self.x_dead_reckoning = np.zeros((3, STOP_K))      # [x, y, theta].T for each time step
         self.dk = dk
         self.a = np.array([[motion_params['a_1'], motion_params['a_2']],
@@ -27,6 +27,7 @@ class Simulation:
                            [motion_params['a_5'], motion_params['a_6']]])
         self.observation_params = observation_params
         self.observed = None
+        self.view_distance = view_distance
 
     def move(self, k):
         """
@@ -70,17 +71,30 @@ class Simulation:
         self.x[:,k] = np.array([[x, y, theta]])
 
     def _observe(self, k):
-        diff = self.x[:2,k][:,np.newaxis] - self._l_pos
-        dists = np.hypot(diff[0], diff[1])
-        observed = np.where(dists < 7)
-        bearing = Simulation.angle(np.arctan2(diff[1, observed], diff[0, observed]) - self.x[2,k])
+        relative_pos = self.x[:2,k][:,np.newaxis] - self._landmarks_pos                # (2, N_LANDMARKS)
+        dists = np.hypot(relative_pos[0], relative_pos[1])                             # (N_LANDMARKS,)
+        # observed = np.where(dists < 7)
+        observed_ids = np.asarray(dists < 7).nonzero()[0]                                 # (N_OBSERVED,)
+        bearing = Simulation.angle(np.arctan2(relative_pos[1, observed_ids], relative_pos[0, observed_ids]) - self.x[2,k])          # (N_OBSERVED,)
         
-        return observed, bearing, dists
+        return observed_ids, bearing, dists[observed_ids]
 
-    def observe(self):
+    def observe(self, k):
+        """
+            Observe landmarks within a certain range of the robot's position, with simulated sensor noise.
+
+            Returns
+            -------
+            observed : np.array
+                boolean array of observed landmark indices (closer than self.view_distance)
+            bearing : np.array
+                bearing angles to OBSERVED landmarks
+            dists : np.array
+                distance to OBSERVED landmarks
+        """
         observed, bearing, dists = self._observe(k)
 
-        bearing +=  np.random.normal(0, self.observation_params["sigma_r"], size=bearing.shape)
+        bearing +=  Simulation.angle(np.random.normal(0, self.observation_params["sigma_r"], size=bearing.shape))
         dists   +=  np.random.normal(0, self.observation_params["sigma_phi"], size=dists.shape)
 
         return observed, bearing, dists
@@ -93,7 +107,7 @@ class Simulation:
 
     @property
     def l_pos(self):
-        return self._l_pos
+        return self._landmarks_pos
 
 
     # Static methods
