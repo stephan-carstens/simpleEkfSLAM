@@ -94,7 +94,7 @@ class Simulation:
         """
         observed, bearing, dists = self._observe(k)
 
-        bearing +=  Simulation.angle(np.random.normal(0, self.observation_params["sigma_r"], size=bearing.shape))
+        bearing =  Simulation.angle(bearing + np.random.normal(0, self.observation_params["sigma_r"], size=bearing.shape))
         dists   +=  np.random.normal(0, self.observation_params["sigma_phi"], size=dists.shape)
 
         return observed, bearing, dists

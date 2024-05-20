@@ -1,4 +1,5 @@
 import numpy as np
+from simulation import Simulation
 
 class EKF:
     def __init__(self, motion_model_covariance, observation_model_covariance):
@@ -10,9 +11,9 @@ class EKF:
         self.n_landmarks = 0
         self.landmark_indices = []
 
-    def predict_update(self, u, dk, observed, range, bearing):
+    def predict_update(self, u, dk, observed, bearing, range):
         self.predict(u, dk)
-        self.update(observed, range, bearing)
+        self.update(observed, bearing, range)
 
     def predict(self, u, dk):
         r_ = u[0]/u[1]
@@ -33,14 +34,14 @@ class EKF:
 
         self.sigma += G.T @ self.sigma @ G + self.F().T @ self.R @ self.F() 
 
-    def update(self, observed, range, bearing):
+    def update(self, observed, bearing, range):
         for l_i, l_id in enumerate(observed):       # consistant l_id used for correspondence
             if l_id not in self.landmark_indices:
                 self.landmark_indices.append(l_id)
                 self.n_landmarks += 1
 
-                mu_j = np.array([[self.mu[0,0] + range[l_i]*np.cos(bearing[l_i] + self.mu[2,0])],
-                                 [self.mu[1,0] + range[l_i]*np.sin(bearing[l_i] + self.mu[2,0])]])
+                mu_j = np.array([[self.mu[0,0] + range[l_i]*np.cos(Simulation.angle(bearing[l_i] + self.mu[2,0]))],
+                                 [self.mu[1,0] + range[l_i]*np.sin(Simulation.angle(bearing[l_i] + self.mu[2,0]))]])
 
                 # augment mu and sigma 
                 self.mu = np.vstack((self.mu, mu_j))
@@ -53,7 +54,7 @@ class EKF:
             q = q[0,0]
 
             z_hat = np.array([  [np.sqrt(q)],
-                                [np.arctan2(delta[1, 0], delta[0, 0]) - self.mu[2,0]]  ])
+                                [Simulation.angle(np.arctan2(delta[1, 0], delta[0, 0]) - self.mu[2,0])]  ])
 
             F = np.zeros((3+2, 3+2*self.n_landmarks))
             F[0,0] = 1; F[1,1] = 1; F[2,2] = 1
@@ -67,10 +68,10 @@ class EKF:
             K = self.sigma @ H.T @ np.linalg.inv(H @ self.sigma @ H.T + self.Q)
             
             # (3+2N, 1) = (3+2N, 1) + (3+2N, 2) @ (2, 1)
-            self.mu += K @ (np.array([[range[l_i]], [bearing[l_i]]]) - z_hat)
+            self.mu += K @ np.array([   [range[l_i] - z_hat[0,0]], 
+                                        [Simulation.angle(bearing[l_i] - z_hat[1,0])] ]) 
+            # self.mu += K @ (np.array([[range[l_i]], [bearing[l_i]]]) - z_hat)
             self.sigma = (np.eye(3 + 2*self.n_landmarks) - K @ H) @ self.sigma
-
-
 
 
     def F(self):
