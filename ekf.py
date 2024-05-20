@@ -17,7 +17,7 @@ class EKF:
     def predict(self, u, dk):
         r_ = u[0]/u[1]
 
-        # update mean noise-free
+        # update mean noise-free, by assuming circular motion
         self.mu = self.mu + self.F().T @ \
             np.array([  [-r_*np.sin(self.mu[2,0]) + r_*np.sin(self.mu[2,0] + u[1]*dk)],
                         [r_*np.cos(self.mu[2,0]) - r_*np.cos(self.mu[2,0] + u[1]*dk)],
@@ -34,39 +34,40 @@ class EKF:
         self.sigma += G.T @ self.sigma @ G + self.F().T @ self.R @ self.F() 
 
     def update(self, observed, range, bearing):
-        for i, j in enumerate(observed):
-            if j not in self.landmark_indices:
-                self.landmark_indices.append(j)
+        for l_i, l_id in enumerate(observed):       # consistant l_id used for correspondence
+            if l_id not in self.landmark_indices:
+                self.landmark_indices.append(l_id)
                 self.n_landmarks += 1
 
-                mu_j = np.array([[self.mu[0,0] + range[i]*np.cos(bearing[i] + self.mu[2,0])],
-                                 [self.mu[1,0] + range[i]*np.sin(bearing[i] + self.mu[2,0])]])
+                mu_j = np.array([[self.mu[0,0] + range[l_i]*np.cos(bearing[l_i] + self.mu[2,0])],
+                                 [self.mu[1,0] + range[l_i]*np.sin(bearing[l_i] + self.mu[2,0])]])
+
+                # augment mu and sigma 
                 self.mu = np.vstack((self.mu, mu_j))
                 self.sigma = np.hstack(   (np.vstack((self.sigma, np.zeros((2, self.sigma.shape[1])))), np.zeros((2+self.sigma.shape[0], 2)))   )
             else:
-                mu_j = self.mu[3+2*self.landmark_indices.index(j):3+2*self.landmark_indices.index(j)+2,:]
-                
+                mu_j = self.mu[3+2*self.landmark_indices.index(l_id):3+2*self.landmark_indices.index(l_id)+2,:]
+
             delta = mu_j - self.mu[:2,:]
             q = delta.T @ delta
+            q = q[0,0]
 
-            delta = delta.T[0]
-            z = np.array([  [np.sqrt(q[0,0])],
-                            [np.arctan2(delta[1], delta[0]) - self.mu[2,0]]  ])
+            z_hat = np.array([  [np.sqrt(q)],
+                                [np.arctan2(delta[1, 0], delta[0, 0]) - self.mu[2,0]]  ])
 
             F = np.zeros((3+2, 3+2*self.n_landmarks))
             F[0,0] = 1; F[1,1] = 1; F[2,2] = 1
-            F[3, 3+2*self.landmark_indices.index(j)] = 1; F[4, 3+2*self.landmark_indices.index(j)+1] = 1
+            F[3, 3+2*self.landmark_indices.index(l_id)] = 1; F[4, 3+2*self.landmark_indices.index(l_id)+1] = 1
 
-            q = q[0,0]
-            H = 1/q*np.array([  [-np.sqrt(q)*delta[0], -np.sqrt(q)*delta[1], 0, np.sqrt(q)*delta[0], np.sqrt(q)*delta[1]],
-                                [delta[1], -delta[0], -q, -delta[1], delta[0]]]) @ F
+            H = 1/q*np.array([  [-np.sqrt(q)*delta[0, 0], -np.sqrt(q)*delta[1, 0], 0, np.sqrt(q)*delta[0, 0], np.sqrt(q)*delta[1, 0]],
+                                [delta[1, 0], -delta[0, 0], -q, -delta[1, 0], delta[0, 0]]]) @ F
             # (2, 5) @ (5, 3+2*N_LANDMARKS) = (2, 3+2*N_LANDMARKS)
 
-            # (3+2N, 3+2N) @ (2, 3+2N).T @ ((3, 3+2N) @ (3+2N,3+2N) @ (3, 3+2N).T + (3, 3))**-1
+            # (3+2N, 3+2N) @ (2, 3+2N).T @ ((2, 3+2N) @ (3+2N,3+2N) @ (2, 3+2N).T + (2, 2))**-1
             K = self.sigma @ H.T @ np.linalg.inv(H @ self.sigma @ H.T + self.Q)
             
-            # (3+2N, 1) = (3+2N, 1) + (3+2N, 3) @ (2, 1)
-            self.mu += K @ (z - np.array([[range[i]], [bearing[i]]]))
+            # (3+2N, 1) = (3+2N, 1) + (3+2N, 2) @ (2, 1)
+            self.mu += K @ (np.array([[range[l_i]], [bearing[l_i]]]) - z_hat)
             self.sigma = (np.eye(3 + 2*self.n_landmarks) - K @ H) @ self.sigma
 
 
