@@ -3,10 +3,10 @@ from simulation import Simulation
 
 class EKF:
     def __init__(self, motion_model_covariance, observation_model_covariance):
-        self.R = motion_model_covariance # TODO review
+        self.R = motion_model_covariance
         self.Q = observation_model_covariance
 
-        self.mu = np.array([[0.], [0.], [0.]])                # should be a column vector
+        self.mu = np.array([[0.], [0.], [0.]])                
         self.sigma = np.zeros((3, 3))
         self.n_landmarks = 0
         self.landmark_indices = []
@@ -46,6 +46,7 @@ class EKF:
                 # augment mu and sigma 
                 self.mu = np.vstack((self.mu, mu_j))
                 self.sigma = np.hstack(   (np.vstack((self.sigma, np.zeros((2, self.sigma.shape[1])))), np.zeros((2+self.sigma.shape[0], 2)))   )
+                self.sigma[-2:, -2:] = np.eye(2) * 1e-10
             else:
                 mu_j = self.mu[3+2*self.landmark_indices.index(l_id):3+2*self.landmark_indices.index(l_id)+2,:]
 
@@ -58,10 +59,11 @@ class EKF:
 
             F = np.zeros((3+2, 3+2*self.n_landmarks))
             F[0,0] = 1; F[1,1] = 1; F[2,2] = 1
-            F[3, 3+2*self.landmark_indices.index(l_id)] = 1; F[4, 3+2*self.landmark_indices.index(l_id)+1] = 1
+            F[3, 3+2*self.landmark_indices.index(l_id)] = 1 
+            F[4, 3+2*self.landmark_indices.index(l_id)+1] = 1
 
-            H = 1/q*np.array([  [-np.sqrt(q)*delta[0, 0], -np.sqrt(q)*delta[1, 0], 0, np.sqrt(q)*delta[0, 0], np.sqrt(q)*delta[1, 0]],
-                                [delta[1, 0], -delta[0, 0], -q, -delta[1, 0], delta[0, 0]]]) @ F
+            H = (1/q)*np.array([    [-np.sqrt(q)*delta[0, 0], -np.sqrt(q)*delta[1, 0], 0, np.sqrt(q)*delta[0, 0], np.sqrt(q)*delta[1, 0]],
+                                    [delta[1, 0], -delta[0, 0], -q, -delta[1, 0], delta[0, 0]]]) @ F
             # (2, 5) @ (5, 3+2*N_LANDMARKS) = (2, 3+2*N_LANDMARKS)
 
             # (3+2N, 3+2N) @ (2, 3+2N).T @ ((2, 3+2N) @ (3+2N,3+2N) @ (2, 3+2N).T + (2, 2))**-1
