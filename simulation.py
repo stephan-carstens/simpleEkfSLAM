@@ -59,9 +59,9 @@ class Simulation:
     def _move(self, k):
         x_prev = self.x[:,k-1]
 
-        v = self.u[0] + np.random.normal(0, np.sqrt(self.a[0,:].dot(self.u**2)))        # variance = a_1 v^2 + a_2 w^2
-        w = self.u[1] + np.random.normal(0, np.sqrt(self.a[1,:].dot(self.u**2)))
-        gamma =         np.random.normal(0, np.sqrt(self.a[2,:].dot(self.u**2)))
+        v = self.u[0] + np.random.RandomState(42).normal(0, np.sqrt(self.a[0,:].dot(self.u**2)))        # variance = a_1 v^2 + a_2 w^2
+        w = self.u[1] + np.random.RandomState(42).normal(0, np.sqrt(self.a[1,:].dot(self.u**2)))
+        gamma =         np.random.RandomState(42).normal(0, np.sqrt(self.a[2,:].dot(self.u**2)))
 
         r_ = v / w
         x = x_prev[0] - r_ * np.sin(x_prev[2]) + r_ * np.sin(x_prev[2] + w*self.dk)
@@ -71,7 +71,7 @@ class Simulation:
         self.x[:,k] = np.array([[x, y, theta]])
 
     def _observe(self, k):
-        relative_pos = self.x[:2,k][:,np.newaxis] - self._landmarks_pos                # (2, N_LANDMARKS)
+        relative_pos = self._landmarks_pos - self.x[:2,k][:,np.newaxis]                 # (2, N_LANDMARKS)
         dists = np.hypot(relative_pos[0], relative_pos[1])                             # (N_LANDMARKS,)
         # observed = np.where(dists < 7)
         observed_ids = np.asarray(dists < 7).nonzero()[0]                                 # (N_OBSERVED,)
@@ -94,8 +94,8 @@ class Simulation:
         """
         observed, bearing, dists = self._observe(k)
 
-        bearing =  Simulation.angle(bearing + np.random.normal(0, self.observation_params["sigma_r"], size=bearing.shape))
-        dists   +=  np.random.normal(0, self.observation_params["sigma_phi"], size=dists.shape)
+        bearing =  Simulation.angle(bearing + np.random.RandomState(42).normal(0, self.observation_params["sigma_r"], size=bearing.shape))
+        dists   +=  np.random.RandomState(42).normal(0, self.observation_params["sigma_phi"], size=dists.shape)
 
         return observed, bearing, dists
         
@@ -112,23 +112,23 @@ class Simulation:
 
     # Static methods
     @staticmethod
-    def angle(theta):
-        return theta % (2*np.pi)
+    def angle(x):
+        return (x + np.pi) % (2 * np.pi) - np.pi
 
     @staticmethod
     def generate_landmarks(n_landmarks):
-        l_x = np.random.uniform(-10, 10, size=(1, n_landmarks))             # [x, y].T for each landmark
+        l_x = np.random.RandomState(42).uniform(-10, 10, size=(1, n_landmarks))             # [x, y].T for each landmark
         l_y = np.sqrt(100-l_x[:,:n_landmarks//2]**2) + 10
         l_y2 = -np.sqrt(100-l_x[:,n_landmarks//2:]**2) + 10
         l_y = np.hstack([l_y, l_y2])
         l_pos = np.vstack((l_x, l_y))
-        l_pos += np.random.normal(-0.5, 1, size=l_pos.shape) + np.random.normal(0.5, 1, size=l_pos.shape)
+        l_pos += np.random.RandomState(42).normal(-0.5, 1, size=l_pos.shape) + np.random.RandomState(42).normal(0.5, 1, size=l_pos.shape)
 
         return l_pos
 
     @staticmethod
     def generate_landmarks_uniform(n_landmarks):
-        l_pos = np.random.uniform(-20, 35, size=(2, n_landmarks))             # [x, y].T for each landmark
+        l_pos = np.random.RandomState(42).uniform(-20, 35, size=(2, n_landmarks))             # [x, y].T for each landmark
 
         return l_pos
 

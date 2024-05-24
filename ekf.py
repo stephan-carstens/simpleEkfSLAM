@@ -58,20 +58,22 @@ class EKF:
                                 [Simulation.angle(np.arctan2(delta[1, 0], delta[0, 0]) - self.mu[2,0])]  ])
 
             F = np.zeros((3+2, 3+2*self.n_landmarks))
-            F[0,0] = 1; F[1,1] = 1; F[2,2] = 1
+            F[:3,:3] = np.eye(3)                                    # F[0,0] = 1; F[1,1] = 1; F[2,2] = 1
             F[3, 3+2*self.landmark_indices.index(l_id)] = 1 
             F[4, 3+2*self.landmark_indices.index(l_id)+1] = 1
 
-            H = (1/q)*np.array([    [-np.sqrt(q)*delta[0, 0], -np.sqrt(q)*delta[1, 0], 0, np.sqrt(q)*delta[0, 0], np.sqrt(q)*delta[1, 0]],
-                                    [delta[1, 0], -delta[0, 0], -q, -delta[1, 0], delta[0, 0]]]) @ F
+            h = (1/q)*np.array([    [-np.sqrt(q)*delta[0, 0],   -np.sqrt(q)*delta[1, 0], 0, np.sqrt(q)*delta[0, 0], np.sqrt(q)*delta[1, 0]],
+                                    [delta[1, 0],               -delta[0, 0],           -q, -delta[1, 0],           delta[0, 0]]])
+            H = h @ F
             # (2, 5) @ (5, 3+2*N_LANDMARKS) = (2, 3+2*N_LANDMARKS)
 
             # (3+2N, 3+2N) @ (2, 3+2N).T @ ((2, 3+2N) @ (3+2N,3+2N) @ (2, 3+2N).T + (2, 2))**-1
             K = self.sigma @ H.T @ np.linalg.inv(H @ self.sigma @ H.T + self.Q)
+            innovation = np.array([     [range[l_i] - z_hat[0,0]], 
+                                        [Simulation.angle(bearing[l_i] - z_hat[1,0])] ]) 
             
             # (3+2N, 1) = (3+2N, 1) + (3+2N, 2) @ (2, 1)
-            self.mu += K @ np.array([   [range[l_i] - z_hat[0,0]], 
-                                        [Simulation.angle(bearing[l_i] - z_hat[1,0])] ]) 
+            self.mu = self.mu + K @ innovation
             # self.mu += K @ (np.array([[range[l_i]], [bearing[l_i]]]) - z_hat)
             self.sigma = (np.eye(3 + 2*self.n_landmarks) - K @ H) @ self.sigma
 
